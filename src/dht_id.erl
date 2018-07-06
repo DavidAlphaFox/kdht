@@ -18,7 +18,7 @@ random() ->
     Byte  = fun() -> random:uniform(256) - 1 end,
     Bytes = [Byte() || _ <- lists:seq(1, 20)],
     integer_id(list_to_binary(Bytes)).
-
+%% 距离计算算法非常简单，直接就是xor算法
 distance(BID0, BID1) when is_binary(BID0), is_binary(BID1) ->
     <<ID0:160>> = BID0,
     <<ID1:160>> = BID1,

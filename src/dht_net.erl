@@ -118,7 +118,7 @@ decode_compact_nodes(Values) ->
 
 init([MyID, Port]) ->
 	?I(?FMT("dht_net start at port ~p", [Port])),
-    {ok, Sock} = gen_udp:open(Port, [binary, {active, once}]),
+    {ok, Sock} = gen_udp:open(Port, [binary, {active, once}]), %% 开udp的端口
     {ok, #state{ownid = MyID, sock = Sock, port = Port, sents = gb_trees:empty()}}.
 
 handle_info({udp, Socket, IP, Port, RawData}, State) ->
@@ -149,10 +149,10 @@ code_change(_, _, State) ->
 handle_call({query, Type, {127, 0, 0, 1}, _SelfPort, _Arg}, _From, #state{port = _SelfPort} = State) ->
 	?E(?FMT("send query ~p to self", [Type])),
 	{reply, timeout, State};
-
+%% 向服务器发送query请求
 handle_call({query, Type, IP, Port, Arg}, From, State) ->
 	#state{ownid = MyID, tidseed = TidNum, sock = Sock, sents = Sents} = State,
-	Tid = make_tid(Type, TidNum),
+	Tid = make_tid(Type, TidNum),%% 创建一个请求ID
 	Msg = msg:encode({Type, Tid, dht_id:list_id(MyID), Arg}),
 	case gen_udp:send(Sock, IP, Port, Msg) of
 		ok ->
@@ -168,26 +168,26 @@ handle_call({query, Type, IP, Port, Arg}, From, State) ->
 handle_call(_, _From, State) ->
 	{reply, not_implemented, State}.
 
-handle_msg(Socket, IP, Port, Data, State) ->
+handle_msg(Socket, IP, Port, Data, State) -> %% 此处的IP和Port是对端的
 	#state{ownid = MyID, sents = Sents} = State,
-	case (catch parse_message(Data)) of
+	case (catch parse_message(Data)) of %% 解析过程可能会出错，因此需要catch下
 		{'EXIT', Rea} ->
 			?W(?FMT("parse message failed ~p:~p ~p", [IP, Port, Rea])),
 			State;
 		{error, Tid, Err} ->
 			?W(?FMT("received an error ~p ~p from ~p:~p", [Tid, Err, IP, Port])),
-			NewSents = response_timeout(Tid, Sents),
+			NewSents = response_timeout(Tid, Sents), %% 此处需要修改，将错误传递给上层
 			State#state{sents = NewSents};
 		{response, Tid, Args} ->
 			?T(?FMT("received a response ~p", [Tid])),
-			new_node(MyID, response, Args, IP, Port),
+			new_node(MyID, response, Args, IP, Port), %% 添加新的节点
 			NewSents = response_ok(Tid, Args, Sents),
 			State#state{sents = NewSents};
 		{Query, Tid, Args} ->
 			?T(?FMT("received a query ~p from ~p:~p", [Query, IP, Port])),
-			new_node(MyID, query, Args, IP, Port),
+			new_node(MyID, query, Args, IP, Port),%% 添加新的节点
 			MyListID = dht_id:list_id(MyID),
-			case handle_query(Query, MyListID, Tid, Args, IP, Port) of
+			case handle_query(Query, MyListID, Tid, Args, IP, Port) of %% 处理请求
 				{ok, Msg} ->
 					gen_udp:send(Socket, IP, Port, Msg);
 				F ->
@@ -197,14 +197,14 @@ handle_msg(Socket, IP, Port, Data, State) ->
 	end.
 
 handle_query(ping, MyID, Tid, _Args, _IP, _Port) ->
-	{ok, msg:res_ping(Tid, MyID)};
+	{ok, msg:res_ping(Tid, MyID)}; %% 将自己的ID回复回去
 
 handle_query(find_node, MyID, Tid, Args, _IP, _Port) ->	
-	{ok, Target} = dict:find(<<"id">>, Args),
+	{ok, Target} = dict:find(<<"id">>, Args),%% 这个地方应该拿target而非ID
 	?T(?FMT("recv find_node ~s", [dht_id:tohex(Target)])),
 	TID = dht_id:integer_id(Target),
-	Closest = dht_state:closest(MyID, TID, 8),
-	Msg = msg:res_find_node(Tid, MyID, Closest),
+	Closest = dht_state:closest(MyID, TID, 8),%% 得到距离最近的8个node
+	Msg = msg:res_find_node(Tid, MyID, Closest),%% 返回给请求者
 	{ok, Msg};
  
 handle_query(get_peers, MyID, Tid, Args, IP, Port) ->
@@ -246,20 +246,20 @@ new_node(MyID, Reason, ArgDict, IP, Port) ->
 
 parse_message(Data) ->
 	{ok, {dict, Dict}} = bencode:decode(Data),
-	{ok, Tid} = dict:find(<<"t">>, Dict),
-	case dict:find(<<"y">>, Dict) of
-		{ok, <<"q">>} ->
+	{ok, Tid} = dict:find(<<"t">>, Dict), %% 找到事务ID
+	case dict:find(<<"y">>, Dict) of %% 知道y
+		{ok, <<"q">>} -> %% 查询
 			{ok, QS} = dict:find(<<"q">>, Dict),
-			Type = query_type(QS),
-			{ok, {dict, Args}} = dict:find(<<"a">>, Dict),
+			Type = query_type(QS),%% 查询类型
+			{ok, {dict, Args}} = dict:find(<<"a">>, Dict),%% 查询的参数
 			assert_query_args(Type, Args),
 			assert_args(Args),
 			{Type, Tid, Args};
-		{ok, <<"r">>} ->
+		{ok, <<"r">>} -> %% 回复
 			{ok, {dict, Args}} = dict:find(<<"r">>, Dict),
 			assert_args(Args),
 			{response, Tid, Args};
-		{ok, <<"e">>} ->
+		{ok, <<"e">>} -> %% 异常
 			{ok, {list, Err}} = dict:find(<<"e">>, Dict),
 			{error, Tid, Err}
 	end.
@@ -304,11 +304,11 @@ response_timeout(TidNum, Sents) ->
 			?T(?FMT("query ~p timeout", [TidNum])),
 			remove_query_process(TidNum, Sents)
 	end.
-
+%% 添加inprogress的query
 add_query_process(TidNum, From, Sents) ->
 	?T(?FMT("add query ~p", [TidNum])),
 	Msg = {timeout, self(), TidNum},
-	TRef = erlang:send_after(?QUERY_TIMEOUT, self(), Msg),
+	TRef = erlang:send_after(?QUERY_TIMEOUT, self(), Msg), %% 默认是2秒返回,赤道周长4wkm，光速29wkm/s
 	gb_trees:insert(TidNum, {From, TRef}, Sents).	
 
 find_query_process(TidNum, Sents) ->

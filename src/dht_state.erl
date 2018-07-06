@@ -69,7 +69,7 @@ srv_name(MyID) ->
 	list_to_atom("dht_state" ++ dht_id:tohex(MyID)).
 
 init([MyID, NodeAddrs, Filename, Mod]) ->
-	Buckets = bucket:new(),
+	Buckets = bucket:new(), %% 创建新的dht桐
 	startup_insert_nodes(MyID, NodeAddrs),
 	{ok, TRef} = timer:send_interval(?SAVE_INTERVAL, {interval_save}),
 	{ok, #state{ownid = MyID, savefile = Filename, 
@@ -83,7 +83,7 @@ handle_cast(dump, State) ->
 	#state{buckets = Buckets} = State,
 	bucket:dump(Buckets),
 	{noreply, State};
-
+%% 发送事件给监控
 handle_cast({event, Event, Args}, State) ->
 	#state{mod = M} = State,
 	M:handle_event(Event, Args),
@@ -202,7 +202,7 @@ save_state(State) ->
 save(Filename, Self, NodeList) ->
 	PersistentState = [{node_id, Self}, {node_set, NodeList}],
     file:write_file(Filename, term_to_binary(PersistentState)).
-
+%% 加载历史文件
 load(Filename) ->
     case file:read_file(Filename) of
         {ok, BinState} ->
