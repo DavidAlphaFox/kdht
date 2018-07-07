@@ -17,7 +17,7 @@
 -define(in_range(ID, Min, Max), ((ID >= Min) and (ID < Max))).
 -include("conf.hrl").
 
-new() ->
+new() -> %% 桶中数据最大最小值
     Max = dht_id:max(),
     Min = dht_id:min(),
     [{Min, Max, []}].
@@ -99,14 +99,14 @@ do_insert(Self, ID, IP, Port, [{Min, Max, Members}|T])
 when ?in_range(ID, Min, Max), ?in_range(Self, Min, Max) ->
     NumMembers = length(Members),
     if 
-        NumMembers < ?K ->
+        NumMembers < ?K -> %% 如果数量小于8
             % ordsets will keep the element unique
             NewMembers = ordsets:add_element({ID, IP, Port}, Members),
-            [{Min, Max, NewMembers}|T];
+            [{Min, Max, NewMembers}|T]; %% 将当前ID，IP和Port放入Members
 
-        NumMembers == ?K, (Max - Min) > 2 ->
-            Diff  = Max - Min,
-            Half  = Max - (Diff div 2),
+        NumMembers == ?K, (Max - Min) > 2 -> %% 数量为8，上下界限差大于2
+            Diff  = Max - Min, %% 计算差值
+            Half  = Max - (Diff div 2), %% 取半值
             Lower = [N || {MID, _, _}=N <- Members, ?in_range(MID, Min, Half)],
             Upper = [N || {MID, _, _}=N <- Members, ?in_range(MID, Half, Max)],
             WithSplit = [{Min, Half, Lower}, {Half, Max, Upper}|T],

@@ -69,7 +69,7 @@ srv_name(MyID) ->
 	list_to_atom("dht_state" ++ dht_id:tohex(MyID)).
 
 init([MyID, NodeAddrs, Filename, Mod]) ->
-	Buckets = bucket:new(), %% 创建新的dht桐
+	Buckets = bucket:new(), %% 创建新的dht桶
 	startup_insert_nodes(MyID, NodeAddrs),
 	{ok, TRef} = timer:send_interval(?SAVE_INTERVAL, {interval_save}),
 	{ok, #state{ownid = MyID, savefile = Filename, 
@@ -91,7 +91,7 @@ handle_cast({event, Event, Args}, State) ->
 
 handle_cast({insert, ID, IP, Port}, State) ->
 	#state{ownid = MyID, buckets = Buckets} = State,
-	Exist = bucket:is_member(ID, IP, Port, Buckets),
+	Exist = bucket:is_member(ID, IP, Port, Buckets),%% 检查ID是否已经存在了
 	NewBuckets = bucket:insert(MyID, ID, IP, Port, Buckets),
 	% TODO: it's a CPU waste
 	InsertOk = bucket:is_member(ID, IP, Port, NewBuckets),
