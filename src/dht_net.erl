@@ -222,7 +222,7 @@ handle_query(get_peers, MyID, Tid, Args, IP, Port) ->
 			?T(?FMT("response get_peers with ~p peers", [length(Peers)])),
 			{ok, msg:res_get_peer(Tid, MyID, Token, peers, Peers)}
 	end;
-
+%% 对外宣称自己正在下载某个种子
 handle_query(announce_peer, MyID, Tid, Args, IP, Port) ->
 	{ok, InfoHash} = dict:find(<<"info_hash">>, Args),
 	{ok, BTPort} = dict:find(<<"port">>, Args),
